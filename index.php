@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      VALUES (?, ?, 'successo', ?)"
                 )->execute([$utente['id'], $username, $_SERVER['HTTP_USER_AGENT'] ?? null]);
 
-                header('Location: dashboard.php');
+                header('Location: ' . ($_SESSION['is_admin'] ? 'admin.php' : 'dashboard.php'));
                 exit;
 
             } else {
