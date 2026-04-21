@@ -62,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username']  = $utente['username'];
                 $_SESSION['nome']      = $utente['nome'];
                 $_SESSION['login_ora'] = time();
+                $_SESSION['is_admin']  = isAdminAccount($db, (int) $utente['id'], $utente['username']);
 
                 $db->prepare(
                     "INSERT INTO log_accessi (utente_id, username_tentato, esito, user_agent)

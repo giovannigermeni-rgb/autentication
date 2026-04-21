@@ -39,7 +39,7 @@
 html { font-size: 15px; scroll-behavior: smooth; }
 
 body {
-  font-family: var(--sans);
+  font-family: var(--mono);
   background: var(--paper);
   color: var(--ink);
   min-height: 100vh;
@@ -253,6 +253,214 @@ body {
   padding-top: .2rem;
 }
 
+.page-intro {
+  max-width: 42rem;
+  margin-top: .75rem;
+  color: var(--ink-mid);
+  font-size: .98rem;
+}
+
+.alert-banner {
+  padding: .95rem 1.15rem;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font-family: var(--mono);
+  font-size: .8rem;
+  line-height: 1.6;
+}
+
+.alert-banner.success {
+  background: var(--leaf-bg);
+  color: var(--leaf);
+  border-color: rgba(45,106,79,.18);
+}
+
+.alert-banner.error {
+  background: var(--rust-bg);
+  color: var(--rust);
+  border-color: rgba(181,74,42,.18);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .9fr);
+  gap: 1.4rem;
+  align-items: start;
+}
+
+.admin-card {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 1.6rem;
+  box-shadow: var(--shadow-md);
+}
+
+.admin-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.admin-form .field label,
+.check-row {
+  font-family: var(--mono);
+  font-size: .68rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.admin-form input,
+.admin-form select {
+  width: 100%;
+  padding: .78rem .95rem;
+  background: var(--paper-warm);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-md);
+  font-family: var(--mono);
+  font-size: .88rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color .18s, box-shadow .18s, background .18s;
+}
+
+
+.admin-form input:focus,
+.admin-form select:focus {
+  border-color: var(--cobalt);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(30,58,138,.10);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  cursor: pointer;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--leaf);
+  flex-shrink: 0;
+}
+
+.check-row span {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: .84rem;
+  color: var(--ink-mid);
+}
+
+.admin-submit {
+  justify-content: center;
+  width: 100%;
+}
+
+.admin-note h2 {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.6rem;
+  font-weight: 400;
+  margin-bottom: .7rem;
+}
+
+.admin-note p {
+  color: var(--ink-mid);
+  margin-top: .8rem;
+}
+
+.inline-form {
+  display: inline-flex;
+}
+
+.hidden-delete-form {
+  display: none;
+}
+
+.table-actions {
+  display: flex;
+  flex-direction: column;
+  gap: .9rem;
+}
+
+.table-save-btn {
+  align-self: flex-start;
+}
+
+.table-select {
+  min-width: 110px;
+  padding: .45rem .65rem;
+  background: var(--paper-warm);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: .72rem;
+  color: var(--ink);
+}
+
+.table-check {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  cursor: pointer;
+}
+
+.table-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--leaf);
+}
+
+.btn-inline-save {
+  background: var(--cobalt);
+  color: #fff;
+  border: 1px solid var(--cobalt);
+  border-radius: 999px;
+  padding: .4rem .75rem;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.btn-inline-save:hover {
+  opacity: .92;
+}
+
+.btn-inline-danger {
+  background: transparent;
+  color: var(--rust);
+  border: 1px solid rgba(181,74,42,.35);
+  border-radius: 999px;
+  padding: .4rem .75rem;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.btn-inline-danger:hover {
+  background: var(--rust);
+  color: #fff;
+}
+
+.action-stack {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+
 /* ══════════════════════════════════════════
    TIMBRATURA CARD
 ══════════════════════════════════════════ */
@@ -342,18 +550,27 @@ body {
   border: 1.5px solid transparent;
   border-radius: var(--r-lg);
   cursor: pointer;
-  transition: transform .15s, box-shadow .15s, opacity .15s;
   display: flex;
   align-items: center;
   gap: .5rem;
 }
 
-.btn-stamp:hover  { transform: translateY(-2px); box-shadow: var(--shadow-md); opacity: .92; }
-.btn-stamp:active { transform: translateY(0); box-shadow: none; }
+.btn-stamp:hover  {
+  opacity: .92;
+  transition-duration: 200ms;
+  transition-property: background-color, color;
+}
 
 .btn-stamp.entrata {
   background: var(--leaf);
   color: #fff;
+  border-color: var(--leaf);
+  cursor: pointer;
+}
+
+.btn-stamp.entrata:hover {
+  background: #fff;
+  color: var(--leaf);
   border-color: var(--leaf);
 }
 
@@ -467,6 +684,7 @@ td {
   .page-date   { text-align: left; }
   .badging     { flex-direction: column; align-items: flex-start; }
   .topbar-name { display: none; }
+  .admin-grid  { grid-template-columns: 1fr; }
 }
 
 /* ══════════════════════════════════════════

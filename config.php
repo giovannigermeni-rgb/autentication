@@ -42,3 +42,44 @@ function getDB(): PDO {
     }
     return $pdo;
 }
+
+function getTableColumns(PDO $db, string $table): array {
+    $columns = [];
+
+    foreach (getTableSchema($db, $table) as $column) {
+        $columns[] = $column['Field'];
+    }
+
+    return $columns;
+}
+
+function getTableSchema(PDO $db, string $table): array {
+    static $cache = [];
+
+    if (isset($cache[$table])) {
+        return $cache[$table];
+    }
+
+    $stmt = $db->query('SHOW COLUMNS FROM `' . str_replace('`', '``', $table) . '`');
+    $cache[$table] = $stmt->fetchAll();
+    return $cache[$table];
+}
+
+function tableHasColumn(PDO $db, string $table, string $column): bool {
+    return in_array($column, getTableColumns($db, $table), true);
+}
+
+function isAdminAccount(PDO $db, int $userId, ?string $username = null): bool {
+    if (tableHasColumn($db, 'utenti', 'ruolo')) {
+        $stmt = $db->prepare('SELECT ruolo FROM utenti WHERE id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $role = strtolower((string) $stmt->fetchColumn());
+        return in_array($role, ['admin', 'administrator', 'amministratore'], true);
+    }
+
+    if ($username !== null && strtolower($username) === 'admin') {
+        return true;
+    }
+
+    return $userId === 1;
+}
