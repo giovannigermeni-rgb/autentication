@@ -307,6 +307,13 @@ body {
   gap: .45rem;
 }
 
+.field-error {
+  font-family: var(--mono);
+  font-size: .7rem;
+  color: var(--rust);
+  line-height: 1.5;
+}
+
 .admin-form .field label,
 .check-row {
   font-family: var(--mono);
@@ -336,6 +343,12 @@ body {
   border-color: var(--cobalt);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(30,58,138,.10);
+}
+
+.admin-form .input-error {
+  border-color: var(--rust);
+  background: #fff7f4;
+  box-shadow: 0 0 0 3px rgba(181,74,42,.08);
 }
 
 .check-row {

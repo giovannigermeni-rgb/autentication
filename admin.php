@@ -36,6 +36,7 @@ if (empty($_SESSION['csrf_token'])) {
 $csrf = $_SESSION['csrf_token'];
 
 $alert = ['type' => '', 'message' => ''];
+$formErrors = [];
 $userColumns = getTableColumns($db, 'utenti');
 $hasActiveColumn = in_array('attivo', $userColumns, true);
 $hasRoleColumn = in_array('ruolo', $userColumns, true);
@@ -58,11 +59,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
         $newActive = isset($_POST['attivo']) ? 1 : 0;
 
         if ($newName === '' || $newUsername === '' || $newPassword === '' || ($hasEmailColumn && $newEmail === '')) {
+            if ($newName === '') {
+                $formErrors['nome'] = 'Inserisci il nome completo.';
+            }
+            if ($newUsername === '') {
+                $formErrors['username'] = 'Inserisci uno username.';
+            }
+            if ($hasEmailColumn && $newEmail === '') {
+                $formErrors['email'] = 'Inserisci un indirizzo email.';
+            }
+            if ($newPassword === '') {
+                $formErrors['password'] = 'Inserisci una password iniziale.';
+            }
             $alert = [
                 'type' => 'error',
-                'message' => 'Compila nome, username, email e password per creare un nuovo utente.'
+                'message' => 'Errore controlla i campi e riprova.'
             ];
         } elseif ($hasEmailColumn && !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+            $formErrors['email'] = 'Inserisci un indirizzo email valido.';
             $alert = [
                 'type' => 'error',
                 'message' => 'Inserisci un indirizzo email valido.'
@@ -73,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
             $exists = (int) $stmt->fetchColumn() > 0;
 
             if ($exists) {
+                $formErrors['username'] = 'Questo username esiste gia.';
                 $alert = [
                     'type' => 'error',
                     'message' => 'Esiste gia un utente con questo username.'
@@ -83,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
                 $emailExists = (int) $stmt->fetchColumn() > 0;
 
                 if ($emailExists) {
+                    $formErrors['email'] = 'Questa email esiste gia.';
                     $alert = [
                         'type' => 'error',
                         'message' => 'Esiste gia un utente con questa email.'
@@ -154,6 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
                         $stmt->execute($values);
                     } catch (Throwable $e) {
                         error_log('Create user failed: ' . $e->getMessage());
+                        $formErrors['form'] = 'Il database ha rifiutato l inserimento.';
                         $alert = [
                             'type' => 'error',
                             'message' => 'Creazione utente non riuscita. Controlla i vincoli della tabella utenti.'
@@ -327,9 +344,11 @@ $selectFields = ['id', 'username', 'nome'];
 if ($hasEmailColumn) {
     $selectFields[] = 'email';
 }
+
 if ($hasActiveColumn) {
     $selectFields[] = 'attivo';
 }
+
 if ($hasRoleColumn) {
     $selectFields[] = 'ruolo';
 }
@@ -376,7 +395,6 @@ $iniziale = mb_strtoupper(mb_substr($nome, 0, 1));
       <span class="brand-sub">admin</span>
     </a>
     <div class="topbar-right">
-      <a href="dashboard.php" class="btn-exit">Area utente</a>
       <div class="avatar"><?= htmlspecialchars($iniziale) ?></div>
       <span class="topbar-name"><?= htmlspecialchars($nome) ?></span>
       <a href="logout.php" class="btn-exit">Esci</a>
@@ -434,23 +452,27 @@ $iniziale = mb_strtoupper(mb_substr($nome, 0, 1));
 
           <div class="field">
             <label for="nome">Nome completo</label>
-            <input type="text" id="nome" name="nome" value="<?= htmlspecialchars($_POST['nome'] ?? '') ?>" placeholder="es. Mario Rossi" required>
+            <input type="text" id="nome" name="nome" value="<?= htmlspecialchars($_POST['nome'] ?? '') ?>" placeholder="es. Mario Rossi" class="<?= isset($formErrors['nome']) ? 'input-error' : '' ?>" required>
+            <?php if (isset($formErrors['nome'])): ?><span class="field-error"><?= htmlspecialchars($formErrors['nome']) ?></span><?php endif; ?>
           </div>
 
           <div class="field">
             <label for="username">Username</label>
-            <input type="text" id="username" name="username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" placeholder="es. mario.rossi" required>
+            <input type="text" id="username" name="username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" placeholder="es. mario.rossi" class="<?= isset($formErrors['username']) ? 'input-error' : '' ?>" required>
+            <?php if (isset($formErrors['username'])): ?><span class="field-error"><?= htmlspecialchars($formErrors['username']) ?></span><?php endif; ?>
           </div>
 
           <div class="field">
             <label for="password">Password iniziale</label>
-            <input type="password" id="password" name="password" placeholder="Inserisci una password sicura" required>
+            <input type="password" id="password" name="password" placeholder="Inserisci una password sicura" class="<?= isset($formErrors['password']) ? 'input-error' : '' ?>" required>
+            <?php if (isset($formErrors['password'])): ?><span class="field-error"><?= htmlspecialchars($formErrors['password']) ?></span><?php endif; ?>
           </div>
 
           <?php if ($hasEmailColumn): ?>
           <div class="field">
             <label for="email">Email</label>
-            <input type="email" id="email" name="email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" placeholder="es. nome@azienda.it" required>
+            <input type="email" id="email" name="email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" placeholder="es. nome@azienda.it" class="<?= isset($formErrors['email']) ? 'input-error' : '' ?>" required>
+            <?php if (isset($formErrors['email'])): ?><span class="field-error"><?= htmlspecialchars($formErrors['email']) ?></span><?php endif; ?>
           </div>
           <?php endif; ?>
 
@@ -487,11 +509,13 @@ $iniziale = mb_strtoupper(mb_substr($nome, 0, 1));
   </section>
 
   <section class="fade-up">
-    <div class="section-label">Utenti registrati</div>
     <form method="POST" class="table-actions">
-      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-      <input type="hidden" name="admin_action" value="update_user">
-      <button type="submit" class="btn-inline-save table-save-btn">Salva modifiche tabella</button>
+        <div style="display: flex; align-items: center; justify-content: space-between">
+            <div class="section-label" style="margin-bottom: 0">Utenti registrati</div>
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="admin_action" value="update_user">
+            <button type="submit" class="btn-inline-save table-save-btn">Salva modifiche tabella</button>
+        </div>
       <div class="tbl-wrap">
         <table>
           <thead>

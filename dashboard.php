@@ -25,6 +25,11 @@ $username  = $_SESSION['username'] ?? null;
 $isAdmin   = $_SESSION['is_admin'] ?? isAdminAccount($db, $utente_id, $username);
 $_SESSION['is_admin'] = $isAdmin;
 
+if ($isAdmin) {
+    header('Location: admin.php');
+    exit;
+}
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -227,9 +232,6 @@ $iniziale = mb_strtoupper(mb_substr($nome, 0, 1));
       <span class="brand-sub">v2</span>
     </a>
     <div class="topbar-right">
-      <?php if ($isAdmin): ?>
-      <a href="admin.php" class="btn-exit">Area admin</a>
-      <?php endif; ?>
       <div class="avatar"><?= htmlspecialchars($iniziale) ?></div>
       <span class="topbar-name"><?= htmlspecialchars($nome) ?></span>
       <a href="logout.php" class="btn-exit">Esci</a>
