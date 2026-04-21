@@ -550,6 +550,21 @@ body {
   line-height: 1.7;
 }
 
+.geo-status {
+  font-family: var(--mono);
+  font-size: .76rem;
+  color: var(--ink-faint);
+  line-height: 1.7;
+}
+
+.geo-status.ok {
+  color: var(--leaf);
+}
+
+.geo-status.error {
+  color: var(--rust);
+}
+
 .sep { color: var(--rule); margin: 0 .3em; }
 
 /* Bottoni timbratura */
@@ -572,6 +587,11 @@ body {
   opacity: .92;
   transition-duration: 200ms;
   transition-property: background-color, color;
+}
+
+.btn-stamp:disabled {
+  opacity: .45;
+  cursor: not-allowed;
 }
 
 .btn-stamp.entrata {
