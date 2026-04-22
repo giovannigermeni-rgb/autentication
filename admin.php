@@ -4,20 +4,11 @@
 // ============================================================
 require_once 'config.php';
 
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict']);
-session_start();
+startSecureSession();
+requireAuthenticatedUser();
+enforceSessionLifetime();
 
-if (empty($_SESSION['utente_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-if (isset($_SESSION['login_ora']) && (time() - $_SESSION['login_ora']) > SESSION_LIFETIME) {
-    session_destroy();
-    header('Location: index.php?timeout=1');
-    exit;
-}
-
+// Contesto utente corrente.
 $db        = getDB();
 $utente_id = (int) $_SESSION['utente_id'];
 $nome      = $_SESSION['nome'];
@@ -30,18 +21,16 @@ if (!$isAdmin) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf = $_SESSION['csrf_token'];
+$csrf = getCsrfToken();
 
 $alert = ['type' => '', 'message' => ''];
-$formErrors = [];
-$userColumns = getTableColumns($db, 'utenti');
+$formErrors     = [];
+$userColumns    = getTableColumns($db, 'utenti');
 $hasActiveColumn = in_array('attivo', $userColumns, true);
-$hasRoleColumn = in_array('ruolo', $userColumns, true);
-$hasEmailColumn = in_array('email', $userColumns, true);
+$hasRoleColumn   = in_array('ruolo', $userColumns, true);
+$hasEmailColumn  = in_array('email', $userColumns, true);
 
+// Azioni amministrative: creazione, modifica tabella, eliminazione.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
     if (!hash_equals($csrf, $_POST['csrf_token'] ?? '')) {
         http_response_code(403);
@@ -58,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
         $newRole = trim($_POST['ruolo'] ?? 'utente');
         $newActive = isset($_POST['attivo']) ? 1 : 0;
 
+        // Validazione base del form di creazione.
         if ($newName === '' || $newUsername === '' || $newPassword === '' || ($hasEmailColumn && $newEmail === '')) {
             if ($newName === '') {
                 $formErrors['nome'] = 'Inserisci il nome completo.';
@@ -135,8 +125,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
                         'type' => 'error',
                         'message' => 'Impossibile creare l utente: la tabella richiede anche questi campi: '
                             . implode(', ', $unsupportedRequiredFields) . '.'
-                    ];
+                        ];
                 } else {
+                    // Costruzione dinamica dell'INSERT per adattarsi allo schema reale.
                     $fields = ['username', 'password', 'nome'];
                     $placeholders = ['?', '?', '?'];
                     $values = [$newUsername, password_hash($newPassword, PASSWORD_DEFAULT), $newName];
@@ -187,6 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
     }
 
     if ($action === 'update_user') {
+        // Salvataggio modifiche rapide da tabella utenti.
         $submittedUsers = $_POST['users'] ?? null;
 
         if (!is_array($submittedUsers) || $submittedUsers === []) {
@@ -278,6 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
     }
 
     if ($action === 'delete_user') {
+        // Eliminazione utente con pulizia dei record collegati.
         $deleteUserId = (int) ($_POST['delete_user_id'] ?? 0);
 
         if ($deleteUserId <= 0) {
@@ -340,6 +333,7 @@ if (isset($_GET['updated'])) {
     ];
 }
 
+// Elenco utenti e metriche sintetiche per la vista admin.
 $selectFields = ['id', 'username', 'nome'];
 if ($hasEmailColumn) {
     $selectFields[] = 'email';

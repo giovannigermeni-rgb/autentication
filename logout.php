@@ -4,8 +4,7 @@
 // ============================================================
 require_once 'config.php';
 
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict']);
-session_start();
+startSecureSession();
 session_unset();
 session_destroy();
 

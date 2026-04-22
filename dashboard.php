@@ -4,20 +4,11 @@
 // ============================================================
 require_once 'config.php';
 
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict']);
-session_start();
+startSecureSession();
+requireAuthenticatedUser();
+enforceSessionLifetime();
 
-if (empty($_SESSION['utente_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-if (isset($_SESSION['login_ora']) && (time() - $_SESSION['login_ora']) > SESSION_LIFETIME) {
-    session_destroy();
-    header('Location: index.php?timeout=1');
-    exit;
-}
-
+// Contesto utente corrente.
 $db        = getDB();
 $utente_id = (int) $_SESSION['utente_id'];
 $nome      = $_SESSION['nome'];
@@ -30,10 +21,9 @@ if ($isAdmin) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf = $_SESSION['csrf_token'];
+$csrf            = getCsrfToken();
+$timbraturaBox   = getTimbraturaBoundingBox();
+$timbraturaError = '';
 
 function formatDurata(int $secondi): string {
     $h = intdiv($secondi, 3600);
@@ -46,102 +36,113 @@ function formatDurata(int $secondi): string {
 
 $timbratureIsSessionBased = tableHasColumn($db, 'timbrature', 'entrata_il');
 
+// Gestione invio timbratura.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['azione'])) {
     if (!hash_equals($csrf, $_POST['csrf_token'] ?? '')) {
         http_response_code(403);
         exit('Richiesta non valida.');
     }
 
-    $azione = $_POST['azione'] === 'entrata' ? 'entrata' : 'uscita';
+    $latitude = filter_var($_POST['geo_lat'] ?? null, FILTER_VALIDATE_FLOAT);
+    $longitude = filter_var($_POST['geo_lng'] ?? null, FILTER_VALIDATE_FLOAT);
 
-    if ($timbratureIsSessionBased) {
-        if ($azione === 'entrata') {
-            $stmtCheck = $db->prepare(
-                "SELECT id
-                   FROM timbrature
-                  WHERE utente_id = ? AND uscita_il IS NULL
-                  ORDER BY entrata_il DESC
-                  LIMIT 1"
-            );
-            $stmtCheck->execute([$utente_id]);
-            $openSession = $stmtCheck->fetch();
-
-            if ($openSession) {
-                header('Location: dashboard.php');
-                exit;
-            }
-
-            $stmt = $db->prepare(
-                "INSERT INTO timbrature (utente_id, entrata_il)
-                 VALUES (?, NOW())"
-            );
-            $stmt->execute([$utente_id]);
-        } else {
-            $stmtOpen = $db->prepare(
-                "SELECT id, TIMESTAMPDIFF(SECOND, entrata_il, NOW()) AS durata_sec
-                   FROM timbrature
-                  WHERE utente_id = ? AND uscita_il IS NULL
-                  ORDER BY entrata_il DESC
-                  LIMIT 1"
-            );
-            $stmtOpen->execute([$utente_id]);
-            $openSession = $stmtOpen->fetch();
-
-            if (!$openSession) {
-                header('Location: dashboard.php');
-                exit;
-            }
-
-            $stmt = $db->prepare(
-                "UPDATE timbrature
-                    SET uscita_il = NOW(),
-                        durata = ?
-                  WHERE id = ?"
-            );
-            $stmt->execute([max(0, (int) $openSession['durata_sec']), (int) $openSession['id']]);
-        }
+    if ($latitude === false || $longitude === false || !isWithinTimbraturaArea((float) $latitude, (float) $longitude)) {
+        $timbraturaError = 'Timbratura consentita solo all interno dell area autorizzata.';
     } else {
-        $durata = null;
+        $azione = $_POST['azione'] === 'entrata' ? 'entrata' : 'uscita';
 
-        if ($azione === 'uscita') {
-            $stmtLastEntry = $db->prepare(
-                "SELECT TIMESTAMPDIFF(SECOND, data_ora, NOW()) AS durata_sec
-                   FROM timbrature
-                  WHERE utente_id = ? AND tipo = 'entrata'
-                  ORDER BY data_ora DESC
-                  LIMIT 1"
-            );
-            $stmtLastEntry->execute([$utente_id]);
-            $lastEntry = $stmtLastEntry->fetch();
+        if ($timbratureIsSessionBased) {
+            // Schema nuovo: una riga per sessione con entrata/uscita.
+            if ($azione === 'entrata') {
+                $stmtCheck = $db->prepare(
+                    "SELECT id
+                       FROM timbrature
+                      WHERE utente_id = ? AND uscita_il IS NULL
+                      ORDER BY entrata_il DESC
+                      LIMIT 1"
+                );
+                $stmtCheck->execute([$utente_id]);
+                $openSession = $stmtCheck->fetch();
 
-            if ($lastEntry) {
-                $durata = max(0, (int) $lastEntry['durata_sec']);
+                if ($openSession) {
+                    header('Location: dashboard.php');
+                    exit;
+                }
+
+                $stmt = $db->prepare(
+                    "INSERT INTO timbrature (utente_id, entrata_il)
+                     VALUES (?, NOW())"
+                );
+                $stmt->execute([$utente_id]);
+            } else {
+                $stmtOpen = $db->prepare(
+                    "SELECT id, TIMESTAMPDIFF(SECOND, entrata_il, NOW()) AS durata_sec
+                       FROM timbrature
+                      WHERE utente_id = ? AND uscita_il IS NULL
+                      ORDER BY entrata_il DESC
+                      LIMIT 1"
+                );
+                $stmtOpen->execute([$utente_id]);
+                $openSession = $stmtOpen->fetch();
+
+                if (!$openSession) {
+                    header('Location: dashboard.php');
+                    exit;
+                }
+
+                $stmt = $db->prepare(
+                    "UPDATE timbrature
+                        SET uscita_il = NOW(),
+                            durata = ?
+                      WHERE id = ?"
+                );
+                $stmt->execute([max(0, (int) $openSession['durata_sec']), (int) $openSession['id']]);
             }
         } else {
-            $stmtCheck = $db->prepare(
-                "SELECT tipo FROM timbrature
-                  WHERE utente_id = ?
-                  ORDER BY data_ora DESC LIMIT 1"
-            );
-            $stmtCheck->execute([$utente_id]);
-            $last = $stmtCheck->fetch();
-            if ($last && $last['tipo'] === 'entrata') {
-                header('Location: dashboard.php');
-                exit;
+            // Schema legacy: una riga per evento di entrata/uscita.
+            $durata = null;
+
+            if ($azione === 'uscita') {
+                $stmtLastEntry = $db->prepare(
+                    "SELECT TIMESTAMPDIFF(SECOND, data_ora, NOW()) AS durata_sec
+                       FROM timbrature
+                      WHERE utente_id = ? AND tipo = 'entrata'
+                      ORDER BY data_ora DESC
+                      LIMIT 1"
+                );
+                $stmtLastEntry->execute([$utente_id]);
+                $lastEntry = $stmtLastEntry->fetch();
+
+                if ($lastEntry) {
+                    $durata = max(0, (int) $lastEntry['durata_sec']);
+                }
+            } else {
+                $stmtCheck = $db->prepare(
+                    "SELECT tipo FROM timbrature
+                      WHERE utente_id = ?
+                      ORDER BY data_ora DESC LIMIT 1"
+                );
+                $stmtCheck->execute([$utente_id]);
+                $last = $stmtCheck->fetch();
+                if ($last && $last['tipo'] === 'entrata') {
+                    header('Location: dashboard.php');
+                    exit;
+                }
             }
+
+            $stmt = $db->prepare(
+                "INSERT INTO timbrature (utente_id, tipo, data_ora, durata)
+                 VALUES (?, ?, NOW(), ?)"
+            );
+            $stmt->execute([$utente_id, $azione, $durata]);
         }
 
-        $stmt = $db->prepare(
-            "INSERT INTO timbrature (utente_id, tipo, data_ora, durata)
-             VALUES (?, ?, NOW(), ?)"
-        );
-        $stmt->execute([$utente_id, $azione, $durata]);
+        header('Location: dashboard.php');
+        exit;
     }
-
-    header('Location: dashboard.php');
-    exit;
 }
 
+// Dati di riepilogo per dashboard e storico.
 $stmt = $db->prepare(
     "SELECT esito, data_ora, user_agent
        FROM log_accessi
@@ -164,6 +165,7 @@ $stmt2 = $db->prepare(
 $stmt2->execute([$utente_id]);
 $stats = $stmt2->fetch();
 
+// Lo storico timbrature cambia a seconda dello schema disponibile.
 if ($timbratureIsSessionBased) {
     $stmt3 = $db->prepare(
         "SELECT entrata_il, uscita_il, durata
@@ -286,18 +288,30 @@ $iniziale = mb_strtoupper(mb_substr($nome, 0, 1));
         <?php else: ?>
         <div class="badging-meta">Nessuna timbratura registrata.</div>
         <?php endif; ?>
+
+        <?php if ($timbraturaError !== ''): ?>
+        <div class="geo-status error"><?= htmlspecialchars($timbraturaError) ?></div>
+        <?php else: ?>
+        <div class="geo-status" id="geo-status" aria-live="polite">Verifica posizione in corso...</div>
+        <?php endif; ?>
       </div>
 
-      <form method="POST">
+      <form method="POST" id="timbratura-form"
+        data-lat-min="<?= htmlspecialchars((string) $timbraturaBox['lat_min']) ?>"
+        data-lat-max="<?= htmlspecialchars((string) $timbraturaBox['lat_max']) ?>"
+        data-lng-min="<?= htmlspecialchars((string) $timbraturaBox['lng_min']) ?>"
+        data-lng-max="<?= htmlspecialchars((string) $timbraturaBox['lng_max']) ?>">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="geo_lat" id="geo-lat" value="">
+        <input type="hidden" name="geo_lng" id="geo-lng" value="">
         <?php if ($dentro): ?>
           <input type="hidden" name="azione" value="uscita">
-          <button type="submit" class="btn-stamp uscita">
+          <button type="submit" class="btn-stamp uscita" id="timbratura-submit" disabled>
             <span class="btn-icon">↓</span> Timbra uscita
           </button>
         <?php else: ?>
           <input type="hidden" name="azione" value="entrata">
-          <button type="submit" class="btn-stamp entrata">
+          <button type="submit" class="btn-stamp entrata" id="timbratura-submit" disabled>
             <span class="btn-icon">↑</span> Timbra entrata
           </button>
         <?php endif; ?>
@@ -365,5 +379,6 @@ $iniziale = mb_strtoupper(mb_substr($nome, 0, 1));
   </section>
   <?php endif; ?>
 </main>
+<script src="js/script.js"></script>
 </body>
 </html>

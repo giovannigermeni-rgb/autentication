@@ -4,8 +4,7 @@
 // ============================================================
 require_once 'config.php';
 
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict']);
-session_start();
+startSecureSession();
 
 if (!empty($_SESSION['utente_id'])) {
     header('Location: dashboard.php');
@@ -13,7 +12,6 @@ if (!empty($_SESSION['utente_id'])) {
 }
 
 $errore  = '';
-$successo = '';
 
 // ─────────────────────────────────────────
 //  Gestione POST
@@ -28,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $db = getDB();
 
+        // Verifica se l'utente ha superato il limite di tentativi recenti.
         $stmt = $db->prepare(
             "SELECT COUNT(*) AS cnt
                FROM log_accessi
@@ -55,8 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$username]);
             $utente = $stmt->fetch();
 
+            // Login consentito solo per account attivi con password valida.
             if ($utente && $utente['attivo'] && password_verify($password, $utente['password'])) {
-
                 session_regenerate_id(true);
                 $_SESSION['utente_id'] = $utente['id'];
                 $_SESSION['username']  = $utente['username'];
@@ -71,7 +70,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 header('Location: ' . ($_SESSION['is_admin'] ? 'admin.php' : 'dashboard.php'));
                 exit;
-
             } else {
                 $errore = 'Username o password errati.';
 
@@ -118,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <form method="POST" action="" novalidate>
         <div class="fields">
-
           <div class="field">
             <label for="username">Username</label>
             <input
@@ -148,7 +145,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               required
             >
           </div>
-
         </div>
 
         <button type="submit" class="btn-primary">Accedi</button>
@@ -157,19 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   </div>
 
-  <script>
-    function togglePassword() {
-      const inp = document.getElementById('password');
-      const btn = document.querySelector('.toggle-pw');
-      if (inp.type === 'password') {
-        inp.type = 'text';
-        btn.textContent = 'nascondi';
-      } else {
-        inp.type = 'password';
-        btn.textContent = 'mostra';
-      }
-    }
-  </script>
+  <script src="js/script.js"></script>
 
 </body>
 </html>
